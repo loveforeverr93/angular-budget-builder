@@ -1,0 +1,124 @@
+<div>
+  <div class="flex justify-center border-b-2 py-4 header">
+    <h1 class="text-4xl font-bold text-white">Budget Builder</h1>
+  </div>
+  <div class="mt-10">
+    <div class="flex justify-center">
+      <table>
+        <thead>
+          <tr>
+            <th>
+              <select [ngModel]="startMonth()" (ngModelChange)="startMonth.set(+($event))">
+                <option *ngFor="let item of startMonths()" [value]="item.key">{{item.value}}</option>
+              </select>
+
+              <select [ngModel]="endMonth()" (ngModelChange)="endMonth.set(+($event))">
+                <option *ngFor="let item of endMonths()" [value]="item.key">{{item.value}}</option>
+              </select>
+            </th>
+            <th *ngFor="let item of bindingMonths(); let index = index">{{ item.value }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="px-5 font-bold">{{financialData.income.label}} </td>
+            <td *ngFor="let item of bindingMonths()"></td>
+          </tr>
+          <ng-container
+            *ngFor="let category of financialData.income.subCategory; let index = index ; trackBy: trackByKey">
+            <ng-container *ngTemplateOutlet="renderCategory; context:{ $implicit: category, level: 0 }"></ng-container>
+            <tr>
+              <td class="px-5 font-bold">Sub Totals</td>
+              <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
+                {{ getTotalSub(category.subCategory, item.key) }}
+              </td>
+            </tr>
+          </ng-container>
+          <tr>
+            <td class="px-5 font-bold">Income Total</td>
+            <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
+              {{ totalIncomeMap()[item.key] }}
+            </td>
+          </tr>
+          <tr>
+            <td class="px-5 font-bold">{{financialData.expenses.label}}</td>
+            <td *ngFor="let item of bindingMonths()"></td>
+          </tr>
+          <ng-container
+            *ngFor="let category of financialData.expenses.subCategory; let index = index; trackBy: trackByKey">
+            <ng-container
+              *ngTemplateOutlet="renderCategory; context:{ $implicit: category, level: 0, index: index }"></ng-container>
+            <tr>
+              <td class="px-5 font-bold">Sub Totals</td>
+              <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
+                {{getTotalSub(category.subCategory, item.key)}}
+              </td>
+            </tr>
+          </ng-container>
+          <tr>
+            <td class="px-5  font-bold">Total Expenses</td>
+            <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
+              {{ totalExpenseMap()[item.key] }}
+            </td>
+          </tr>
+          <tr class="font-bold">
+            <td class="px-5">Profit / Loss</td>
+            <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
+              {{ profitLossMap()[item.key] }}
+            </td>
+          </tr>
+          <tr class="font-bold">
+            <td class="px-5">Opening Balance</td>
+            <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
+              {{ balanceMap()[item.key].open }}
+            </td>
+          </tr>
+          <tr class="font-bold">
+            <td class="px-5">Closing Balance</td>
+            <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
+              {{ balanceMap()[item.key].close }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <ng-template #renderCategory let-category let-level="level" let-index>
+        <tr>
+          <td class="px-5" [ngClass]="{'font-bold': !category.data}">
+            <div class="flex" *ngIf="!category.data">
+              <!-- {{ category.label }} -->
+
+              <input type="text" class="border-none text-left w-full" [(ngModel)]="category.label"
+                [ngModelOptions]="{ standalone: true }" (keydown.enter)="onEnterAddParentCategory($any($event))" />
+              <span class="mx-2 cursor-pointer" (click)="deleteRow(category.label)">X</span>
+            </div>
+            <div class="flex" *ngIf="category.data">
+              <input type="text" class="border-none text-left w-full" [(ngModel)]="category.label"
+                [ngModelOptions]="{standalone: true}" />
+              <span class="mx-2 cursor-pointer" (click)="deleteRow(category.label)">X</span>
+            </div>
+          </td>
+          <td *ngFor="let item of bindingMonths(); let i = index" class="text-center">
+            <input *ngIf="category.data" type="text" class="border-none text-center w-full" appOnlyNumber type="text"
+              [ngModel]="getValue(category, item.key)" (ngModelChange)="setValue(category, item.key, $event)"
+              [attr.data-row]="category.label" [attr.data-col]="item.key" (keydown)="onArrowKey($event)"
+              (keydown.enter)="onEnterAddSubCategory($any($event))" (ngModelChange)="onValueChange(item.key, $event)"
+              (contextmenu)="onRightClick($event, category, item.key)" />
+          </td>
+        </tr>
+        <ng-container *ngIf="category.subCategory">
+          <ng-container *ngFor="let sub of category.subCategory">
+            <ng-container
+              *ngTemplateOutlet="renderCategory; context:{ $implicit: sub, level: level + 1 }"></ng-container>
+          </ng-container>
+        </ng-container>
+      </ng-template>
+    </div>
+  </div>
+
+  <div *ngIf="popupVisible" [style.top.px]="popupY" [style.left.px]="popupX" #popupRef
+    class="absolute bg-white border shadow p-2 z-50">
+    <p>
+      <button (click)="applyToAll()">Apply to all</button>
+    </p>
+  </div>
