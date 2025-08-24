@@ -45,7 +45,7 @@ export class Budget implements OnInit, AfterViewInit {
 
   endMonths = computed(() => this.months.slice(this.startMonth() + 1));
 
-  financialData = {
+  financialData = signal({
     income: {
       label: 'Income',
       subCategory: [
@@ -112,8 +112,7 @@ export class Budget implements OnInit, AfterViewInit {
         },
       ],
     },
-  };
-
+  });
   rowsOrder: string[] = [];
   valueChanges$ = new Subject<{ key: number; value: number }>();
 
@@ -121,7 +120,7 @@ export class Budget implements OnInit, AfterViewInit {
     this.valueChanges$.pipe(debounceTime(50)).subscribe();
     effect(() => {
       const months = this.bindingMonths();
-      this.financialData.income.subCategory.forEach((cat) => {
+      this.financialData().income.subCategory.forEach((cat) => {
         cat.subCategory.forEach((sub) => {
           const oldData = sub.data();
           const newData = months.map((m) => {
@@ -227,62 +226,58 @@ export class Budget implements OnInit, AfterViewInit {
       });
     };
 
-    collectRows(this.financialData.income.subCategory);
-    collectRows(this.financialData.expenses.subCategory);
+    collectRows(this.financialData().income.subCategory);
+    collectRows(this.financialData().expenses.subCategory);
   }
 
   onEnterAddSubCategory(event: KeyboardEvent) {
+    if (event.key !== 'Enter') return;
+
     const input = event.target as HTMLInputElement;
     const rowLabel = input.getAttribute('data-row');
     if (!rowLabel) return;
 
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      this.addSubCategory(rowLabel);
-    }
+    event.preventDefault();
+    this.addSubCategory(rowLabel);
   }
 
   addSubCategory(parentLabel: string) {
-    let newSubCategory = {
-      label:
-        'Add new ‘' +
-          this.financialData.income.subCategory.find((c) =>
-            c.subCategory.find((item) => item.label == parentLabel)
-          )?.label ||
-        this.financialData.expenses.subCategory.find((c) =>
-          c.subCategory.find((item) => item.label == parentLabel)
-        )?.label + '’ Category',
-      data: signal(this.months.map((m) => ({ key: m.key, value: 0 }))),
-    };
+    this.financialData.update((fd) => {
+      const newSubCategory = {
+        label: 'New Sub Category',
+        data: signal(this.months.map((m) => ({ key: m.key, value: 0 }))),
+      };
 
-    const parentCategory =
-      this.financialData.income.subCategory.find((c) => {
-        return c.subCategory.find((item) => item.label == parentLabel);
-      }) ||
-      this.financialData.expenses.subCategory.find((c) =>
-        c.subCategory.find((item) => item.label == parentLabel)
-      );
+      const parentCategory =
+        fd.income.subCategory.find((c) =>
+          c.subCategory.find((item) => item.label === parentLabel)
+        ) ||
+        fd.expenses.subCategory.find((c) =>
+          c.subCategory.find((item) => item.label === parentLabel)
+        );
 
-    if (!parentCategory) return;
+      if (!parentCategory) return fd;
 
-    if (!parentCategory.subCategory) parentCategory.subCategory = [];
-
-    parentCategory.subCategory = [...parentCategory.subCategory, newSubCategory];
+      parentCategory.subCategory = [...parentCategory.subCategory, newSubCategory];
+      return { ...fd };
+    });
 
     this.initRowsOrder();
-
-    setTimeout(() => {
-      const input = document.querySelector<HTMLInputElement>(`input[data-row="New SubCategory"]`);
-      if (input) input.focus();
-    });
   }
+
   getValue(category: any, monthKey: number) {
     return category.data().find((d: any) => d.key === monthKey)?.value || 0;
   }
 
   setValue(category: any, monthKey: number, value: number) {
     const oldData = category.data();
-    category.data.set(oldData.map((d: any) => (d.key === monthKey ? { ...d, value } : d)));
+    const newData = oldData.map((d: any) =>
+      d.key === monthKey ? { ...d, value: Number(value) } : d
+    );
+
+    category.data.set(newData);
+
+    category.data.update((d: any) => [...d]);
   }
 
   onValueChange(monthKey: number, value: number) {
@@ -296,33 +291,35 @@ export class Budget implements OnInit, AfterViewInit {
         .map((item) => {
           if (item.subCategory) {
             item.subCategory = deleteFromArray(item.subCategory);
-            if (item.subCategory.length === 0) return null;
           }
           return item;
-        })
-        .filter((item) => item !== null);
+        });
     };
 
-    this.financialData.income.subCategory = deleteFromArray(this.financialData.income.subCategory);
-
-    this.financialData.expenses.subCategory = deleteFromArray(
-      this.financialData.expenses.subCategory
+    this.financialData().income.subCategory = deleteFromArray(
+      this.financialData().income.subCategory
+    );
+    this.financialData().expenses.subCategory = deleteFromArray(
+      this.financialData().expenses.subCategory
     );
 
     this.initRowsOrder();
+
+    this.financialData().income.subCategory.forEach((cat) =>
+      cat.subCategory?.forEach((sub) => sub.data.update((d) => [...d]))
+    );
+    this.financialData().expenses.subCategory.forEach((cat) =>
+      cat.subCategory?.forEach((sub) => sub.data.update((d) => [...d]))
+    );
   }
 
-  onEnterAddParentCategory(event: KeyboardEvent) {
-    const input = event.target as HTMLInputElement;
-    const label = input.value.trim();
-    if (!label) return;
-
+  onEnterAddParentCategory(event: KeyboardEvent, type: 'income' | 'expenses') {
     event.preventDefault();
 
-    this.addParentCategory(label);
+    this.addParentCategory('New Parent Category', type);
   }
 
-  addParentCategory(label: string) {
+  addParentCategory(label: string, type: 'income' | 'expenses') {
     const newCategory = {
       label: 'Add New Parent Category',
       subCategory: [
@@ -333,17 +330,15 @@ export class Budget implements OnInit, AfterViewInit {
       ],
     };
 
-    if (this.financialData.income.subCategory.some((c) => c.label === label)) {
-      this.financialData.income.subCategory = [
-        ...this.financialData.income.subCategory,
-        newCategory,
-      ];
-    } else {
-      this.financialData.expenses.subCategory = [
-        ...this.financialData.expenses.subCategory,
-        newCategory,
-      ];
-    }
+    this.financialData.update((fd) => {
+      return {
+        ...fd,
+        [type]: {
+          ...fd[type],
+          subCategory: [...fd[type].subCategory, newCategory],
+        },
+      };
+    });
 
     this.initRowsOrder();
 
@@ -375,23 +370,17 @@ export class Budget implements OnInit, AfterViewInit {
     if (!this.selectedCategory || this.selectedKey === null) return;
 
     const key = this.selectedKey;
+
     const valueToApply = Number(
       this.selectedCategory.data().find((d: any) => d.key === key)?.value || 0
     );
 
-    const applyValue = (categories: any[]) => {
-      categories.forEach((cat) => {
-        cat.subCategory.forEach((sub: any) => {
-          const oldData = sub.data();
-          sub.data.set(
-            oldData.map((d: any) => (d.key === key ? { ...d, value: valueToApply } : d))
-          );
-        });
-      });
-    };
+    const newData = this.selectedCategory.data().map((d: any) => ({
+      ...d,
+      value: valueToApply,
+    }));
 
-    applyValue(this.financialData.income.subCategory);
-    applyValue(this.financialData.expenses.subCategory);
+    this.selectedCategory.data.set(newData);
 
     this.popupVisible = false;
   }
@@ -423,8 +412,9 @@ export class Budget implements OnInit, AfterViewInit {
     return map;
   };
 
-  totalIncomeMap = computed(() => this.totalByCategory(this.financialData.income.subCategory));
-  totalExpenseMap = computed(() => this.totalByCategory(this.financialData.expenses.subCategory));
+  totalIncomeMap = computed(() => this.totalByCategory(this.financialData().income.subCategory));
+  totalExpenseMap = computed(() => this.totalByCategory(this.financialData().expenses.subCategory));
+
   profitLossMap = computed(() => {
     const map: Record<number, number> = {};
     this.bindingMonths().forEach((month) => {

@@ -21,12 +21,13 @@
         </thead>
         <tbody>
           <tr>
-            <td class="px-5 font-bold">{{financialData.income.label}} </td>
+            <td class="px-5 font-bold">{{financialData().income.label}} </td>
             <td *ngFor="let item of bindingMonths()"></td>
           </tr>
           <ng-container
-            *ngFor="let category of financialData.income.subCategory; let index = index ; trackBy: trackByKey">
-            <ng-container *ngTemplateOutlet="renderCategory; context:{ $implicit: category, level: 0 }"></ng-container>
+            *ngFor="let category of financialData().income.subCategory; let index = index ; trackBy: trackByKey">
+            <ng-container
+              *ngTemplateOutlet="renderCategory; context:{ $implicit: category, level: 0, type: 'income' }"></ng-container>
             <tr>
               <td class="px-5 font-bold">Sub Totals</td>
               <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
@@ -41,13 +42,13 @@
             </td>
           </tr>
           <tr>
-            <td class="px-5 font-bold">{{financialData.expenses.label}}</td>
+            <td class="px-5 font-bold">{{financialData().expenses.label}}</td>
             <td *ngFor="let item of bindingMonths()"></td>
           </tr>
           <ng-container
-            *ngFor="let category of financialData.expenses.subCategory; let index = index; trackBy: trackByKey">
+            *ngFor="let category of financialData().expenses.subCategory; let index = index; trackBy: trackByKey">
             <ng-container
-              *ngTemplateOutlet="renderCategory; context:{ $implicit: category, level: 0, index: index }"></ng-container>
+              *ngTemplateOutlet="renderCategory; context:{ $implicit: category, level: 0, type: 'expenses' }"></ng-container>
             <tr>
               <td class="px-5 font-bold">Sub Totals</td>
               <td class="text-center" *ngFor="let item of bindingMonths(); let i = index">
@@ -82,14 +83,13 @@
         </tbody>
       </table>
 
-      <ng-template #renderCategory let-category let-level="level" let-index>
+      <ng-template #renderCategory let-category let-level="level" let-type="type">
         <tr>
           <td class="px-5" [ngClass]="{'font-bold': !category.data}">
             <div class="flex" *ngIf="!category.data">
-              <!-- {{ category.label }} -->
-
               <input type="text" class="border-none text-left w-full" [(ngModel)]="category.label"
-                [ngModelOptions]="{ standalone: true }" (keydown.enter)="onEnterAddParentCategory($any($event))" />
+                [ngModelOptions]="{ standalone: true }"
+                (keydown.enter)="onEnterAddParentCategory($any($event), type)" />
               <span class="mx-2 cursor-pointer" (click)="deleteRow(category.label)">X</span>
             </div>
             <div class="flex" *ngIf="category.data">
@@ -99,11 +99,17 @@
             </div>
           </td>
           <td *ngFor="let item of bindingMonths(); let i = index" class="text-center">
-            <input *ngIf="category.data" type="text" class="border-none text-center w-full" appOnlyNumber type="text"
-              [ngModel]="getValue(category, item.key)" (ngModelChange)="setValue(category, item.key, $event)"
-              [attr.data-row]="category.label" [attr.data-col]="item.key" (keydown)="onArrowKey($event)"
-              (keydown.enter)="onEnterAddSubCategory($any($event))" (ngModelChange)="onValueChange(item.key, $event)"
-              (contextmenu)="onRightClick($event, category, item.key)" />
+            <div class="flex" *ngIf="!category.data">
+              <input type="text" class="border-none text-left w-full"
+                (keydown.enter)="onEnterAddParentCategory($any($event), type)" />
+            </div>
+            <div class="flex" *ngIf="category.data">
+              <input *ngIf="category.data" type="text" class="border-none text-center w-full" appOnlyNumber type="text"
+                [ngModel]="getValue(category, item.key)" (ngModelChange)="setValue(category, item.key, $event)"
+                [attr.data-row]="category.label" [attr.data-col]="item.key" (keydown)="onArrowKey($event)"
+                (keydown.enter)="onEnterAddSubCategory($any($event))" (ngModelChange)="onValueChange(item.key, $event)"
+                (contextmenu)="onRightClick($event, category, item.key)" />
+            </div>
           </td>
         </tr>
         <ng-container *ngIf="category.subCategory">
